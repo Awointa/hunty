@@ -22,6 +22,7 @@ const SEED_HUNTS: StoredHunt[] = [
     rewardType: "XLM",
     startTime: NOW_SECONDS - 86400,
     endTime: NOW_SECONDS + 7 * 86400,
+    coverImageCid: "bafybeigdyrzt5sfp7udm7hmhd3km4gq6v2y24sqqew2qnp4o3k4xcoq2a",
   },
   {
     id: 2,
@@ -32,6 +33,7 @@ const SEED_HUNTS: StoredHunt[] = [
     rewardType: "NFT",
     startTime: NOW_SECONDS - 2 * 86400,
     endTime: NOW_SECONDS + 3 * 86400,
+    coverImageCid: "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
   },
   {
     id: 3,
@@ -99,6 +101,12 @@ async function writeHunts(hunts: StoredHunt[]): Promise<void> {
   }
 }
 
+/** Active hunts for feed with cover images. */
+export async function getActiveHuntsForFeed(): Promise<StoredHunt[]> {
+  const hunts = await readHunts();
+  return hunts.filter((h) => h.status === "Active" && !h.is_private);
+}
+
 /** All hunts (for Game Arcade: filter by status === "Active"). Private hunts are excluded. */
 export function getAllHunts(): StoredHunt[] {
   return readHunts().filter((h) => !h.is_private);
@@ -145,8 +153,9 @@ export function archiveHunts(ids: number[]): void {
 }
 
 /** Get a single hunt by ID */
-export function getHuntById(id: number): StoredHunt | undefined {
-  return readHunts().find((h) => h.id === id);
+export async function getHuntById(id: number): Promise<StoredHunt | undefined> {
+  const hunts = await readHunts();
+  return hunts.find((h) => h.id === id);
 }
 
 /** Add a new hunt (e.g. after createHunt). */
