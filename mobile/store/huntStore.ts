@@ -99,6 +99,18 @@ async function writeHunts(hunts: StoredHunt[]): Promise<void> {
   }
 }
 
+/** Active hunts for feed (local fallback). */
+export async function getActiveHuntsForFeed(): Promise<StoredHunt[]> {
+  const hunts = await readHunts();
+  return hunts.filter((h) => h.status === "Active" && !h.is_private);
+}
+
+/** Get a single hunt by ID */
+export async function getHuntById(id: number): Promise<StoredHunt | undefined> {
+  const hunts = await readHunts();
+  return hunts.find((h) => h.id === id);
+}
+
 /** All hunts (for Game Arcade: filter by status === "Active"). Private hunts are excluded. */
 export function getAllHunts(): StoredHunt[] {
   return readHunts().filter((h) => !h.is_private);
@@ -142,11 +154,6 @@ export function archiveHunts(ids: number[]): void {
     ids.includes(h.id) ? { ...h, status: "Cancelled" as HuntStatus } : h
   );
   writeHunts(hunts);
-}
-
-/** Get a single hunt by ID */
-export function getHuntById(id: number): StoredHunt | undefined {
-  return readHunts().find((h) => h.id === id);
 }
 
 /** Add a new hunt (e.g. after createHunt). */

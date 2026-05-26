@@ -1,17 +1,19 @@
 import { useEffect } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { Stack, type ErrorBoundaryProps, useRouter } from 'expo-router';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import { hideSplashScreen } from '@utils/splashScreenManager';
-import { useTheme } from '@providers/ThemeProvider';
+import { hideSplashScreen, initializeSplashScreen } from '@utils/splashScreenManager';
+import { ThemeProvider, useTheme } from '@providers/ThemeProvider';
+import ReactQueryProvider from '@providers/ReactQueryProvider';
 import { ThemedCustomText, ThemedButton } from '@components/themed';
 import { StackHeader } from '@components/navigation/StackHeader';
-import { Sentry } from '@config/sentry';
+import { Sentry, initializeSentry } from '@config/sentry';
 
-export const unstable_settings = {
-  initialRouteName: '(tabs)',
-};
+initializeSplashScreen();
+initializeSentry();
+
+export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   useEffect(() => {
@@ -22,18 +24,9 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
         <View style={styles.errorContainer}>
-          <ThemedCustomText variant="h2" style={styles.errorTitle}>
-            Something went wrong
-          </ThemedCustomText>
-          <ThemedCustomText variant="body" style={styles.errorMessage}>
-            {error.message || 'Unexpected navigation error.'}
-          </ThemedCustomText>
-          <ThemedButton
-            text="Try again"
-            onPress={retry}
-            variant="primary"
-            size="md"
-          />
+          <ThemedCustomText variant="h2">Something went wrong</ThemedCustomText>
+          <ThemedCustomText variant="body">{error.message}</ThemedCustomText>
+          <ThemedButton text="Try again" onPress={retry} variant="primary" size="md" />
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -41,39 +34,41 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
+  return (
+    <ReactQueryProvider>
+      <ThemeProvider>
+        <RootLayoutNav />
+      </ThemeProvider>
+    </ReactQueryProvider>
+  );
+}
+
+function RootLayoutNav() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-
   const [loaded, error] = useFonts();
 
   useEffect(() => {
-    if (loaded || error) {
-      hideSplashScreen();
-    }
+    if (loaded || error) hideSplashScreen();
   }, [loaded, error]);
 
   useEffect(() => {
-    const backAction = () => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (router.canGoBack()) {
         router.back();
         return true;
       }
       return false;
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
+    });
     return () => backHandler.remove();
   }, [router]);
 
-  if (!loaded && !error) {
-    return null;
-  }
+  if (!loaded && !error) return null;
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView 
-        style={[styles.safeArea, { backgroundColor: colors.background }]} 
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: colors.background }]}
         edges={['top', 'right', 'bottom', 'left']}
       >
         <Stack
@@ -94,20 +89,12 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
+  safeArea: { flex: 1 },
   errorContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
     paddingHorizontal: 24,
-  },
-  errorTitle: {
-    textAlign: 'center',
-  },
-  errorMessage: {
-    textAlign: 'center',
   },
 });
