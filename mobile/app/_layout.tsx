@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Stack, type ErrorBoundaryProps, useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hideSplashScreen, initializeSplashScreen } from '@utils/splashScreenManager';
@@ -99,6 +100,36 @@ function RootLayoutNav() {
   }, [router]);
 
   useBackHandler(handleBackPress);
+
+  useEffect(() => {
+    const routeFromUrl = (url: string) => {
+      const { path } = Linking.parse(url);
+
+      if (path && path.length > 0) {
+        const normalized = path.startsWith('/') ? path : `/${path}`;
+        router.push(normalized as never);
+        return;
+      }
+
+      router.push('/(tabs)' as never);
+    };
+
+    Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (initialUrl) {
+          routeFromUrl(initialUrl);
+        }
+      })
+      .catch(() => {
+        // Ignore malformed callback URLs.
+      });
+
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      routeFromUrl(url);
+    });
+
+    return () => subscription.remove();
+  }, [router]);
 
   if ((!fontsLoaded && !fontError) || !onboardingResolved) {
     return null;
