@@ -64,14 +64,103 @@ const SEED_HUNTS: StoredHunt[] = [
   },
 ];
 
+const SEED_CLUES: Clue[] = [
+  {
+    id: 1,
+    huntId: 1,
+    question: 'What landmark has a spiral mural at the east gate?',
+    answer: 'Spiral mural',
+    points: 10,
+    hint: 'Look for painted stairs.',
+  },
+  {
+    id: 2,
+    huntId: 1,
+    question: 'Which statue holds a lantern in the north plaza?',
+    answer: 'Lantern statue',
+    points: 10,
+    hint: 'It shines in the night.',
+  },
+  {
+    id: 3,
+    huntId: 1,
+    question: 'Name the coffee shop that shares a wall with the old clock tower.',
+    answer: 'Clocktower Cafe',
+    points: 10,
+  },
+  {
+    id: 4,
+    huntId: 1,
+    question: 'What color is the hidden door behind the bicycle racks?',
+    answer: 'Blue',
+    points: 10,
+  },
+  {
+    id: 5,
+    huntId: 1,
+    question: 'Which alley features the painted fox mural?',
+    answer: 'Fox Alley',
+    points: 10,
+  },
+  {
+    id: 6,
+    huntId: 2,
+    question: 'What building has the golden dome at the center of campus?',
+    answer: 'Golden Dome',
+    points: 8,
+  },
+  {
+    id: 7,
+    huntId: 2,
+    question: 'Which library wing is open 24/7?',
+    answer: 'North Wing',
+    points: 8,
+  },
+  {
+    id: 8,
+    huntId: 2,
+    question: 'What landmark is beside the rose garden?',
+    answer: 'Sculpture fountain',
+    points: 8,
+  },
+  {
+    id: 9,
+    huntId: 2,
+    question: 'What is the name of the student center cafe?',
+    answer: 'Campus Brew',
+    points: 8,
+  },
+  {
+    id: 10,
+    huntId: 2,
+    question: 'Which gate faces the river trail?',
+    answer: 'River Gate',
+    points: 8,
+  },
+  {
+    id: 11,
+    huntId: 2,
+    question: 'Which building holds the mural of a compass?',
+    answer: 'Compass Hall',
+    points: 8,
+  },
+  {
+    id: 12,
+    huntId: 2,
+    question: 'Name the famous bench under the oak tree.',
+    answer: 'Oak Bench',
+    points: 8,
+  },
+];
+
 async function readClues(): Promise<Clue[]> {
   try {
     const raw = await SecureStore.getItemAsync(CLUES_KEY);
-    if (!raw) return [];
+    if (!raw) return [...SEED_CLUES];
     const parsed = JSON.parse(raw) as Clue[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed : [...SEED_CLUES];
   } catch {
-    return [];
+    return [...SEED_CLUES];
   }
 }
 
@@ -139,6 +228,7 @@ export async function getOfflineCachedClues(huntId: number): Promise<Clue[]> {
 
 /** All hunts (for Game Arcade: filter by status === "Active"). Private hunts are excluded. */
 export async function getAllHunts(): Promise<StoredHunt[]> {
+  return (await readHunts()).filter((h) => !h.is_private);
   const hunts = await readHunts();
   return hunts.filter((h) => !h.is_private);
 }
@@ -160,6 +250,8 @@ export async function getHuntsByCreator(): Promise<StoredHunt[]> {
 
 /** Update a hunt's status (e.g. Draft → Active after activate_hunt). */
 export async function updateHuntStatus(huntId: number, status: HuntStatus): Promise<void> {
+  const hunts = (await readHunts()).map((h) => (h.id === huntId ? { ...h, status } : h));
+  await writeHunts(hunts);
   const hunts = await readHunts();
   const updated = hunts.map((h) => (h.id === huntId ? { ...h, status } : h));
   await writeHunts(updated);
@@ -167,6 +259,8 @@ export async function updateHuntStatus(huntId: number, status: HuntStatus): Prom
 
 /** Delete multiple hunts by IDs. */
 export async function deleteHunts(ids: number[]): Promise<void> {
+  const hunts = (await readHunts()).filter((h) => !ids.includes(h.id));
+  await writeHunts(hunts);
   const hunts = await readHunts();
   const remainingHunts = hunts.filter((h) => !ids.includes(h.id));
   await writeHunts(remainingHunts);
@@ -188,6 +282,10 @@ export async function deleteHunts(ids: number[]): Promise<void> {
 
 /** Archive (Cancel) multiple hunts by IDs. */
 export async function archiveHunts(ids: number[]): Promise<void> {
+  const hunts = (await readHunts()).map((h) =>
+    ids.includes(h.id) ? { ...h, status: 'Cancelled' as HuntStatus } : h
+  );
+  await writeHunts(hunts);
   const hunts = await readHunts();
   const updated = hunts.map((h) => 
     ids.includes(h.id) ? { ...h, status: "Cancelled" as HuntStatus } : h
@@ -197,6 +295,7 @@ export async function archiveHunts(ids: number[]): Promise<void> {
 
 /** Get a single hunt by ID */
 export async function getHuntById(id: number): Promise<StoredHunt | undefined> {
+  return (await readHunts()).find((h) => h.id === id);
   const hunts = await readHunts();
   return hunts.find((h) => h.id === id);
 }
@@ -208,6 +307,26 @@ export async function addHunt(hunt: StoredHunt): Promise<void> {
   await writeHunts([...hunts, hunt]);
 }
 
+/** Get all clues for a specific hunt. */
+export async function getHuntClues(huntId: number): Promise<Clue[]> {
+  return (await readClues()).filter((c) => c.huntId === huntId);
+}
+
+/** Persist a new clue locally and increment the hunt's cluesCount. */
+export async function saveClueLocally(clue: Omit<Clue, 'id'>): Promise<void> {
+  const all = await readClues();
+  const newId = all.length > 0 ? Math.max(...all.map((c) => c.id)) + 1 : 1;
+  await writeClues([...all, { ...clue, id: newId }]);
+  const hunts = (await readHunts()).map((h) =>
+    h.id === clue.huntId ? { ...h, cluesCount: h.cluesCount + 1 } : h
+  );
+  await writeHunts(hunts);
+}
+
+/** Get a single hunt by string ID */
+export const getHunt = async (id: string): Promise<StoredHunt | undefined> => {
+  return (await readHunts()).find((c) => c.id === Number(id));
+};
 /** Get all clues for a specific hunt with an offline cache fallback */
 export async function getHuntClues(huntId: number): Promise<Clue[]> {
   // First attempt: read from the primary clues store
@@ -255,22 +374,19 @@ export async function getHunt(id: string): Promise<StoredHunt | undefined> {
  */
 export async function getFeaturedHunts(limit = 3): Promise<StoredHunt[]> {
   const now = Math.floor(Date.now() / 1000);
+  const active = (await readHunts()).filter((h) => h.status === 'Active' && !h.is_private);
   const hunts = await readHunts();
   const active = hunts.filter((h) => h.status === "Active" && !h.is_private);
 
   const scored = active.map((hunt) => {
     let score = 0;
-    // More clues = higher quality hunt
     score += hunt.cluesCount * 10;
-    // Dual-reward hunts are more attractive
-    if (hunt.rewardType === "Both") score += 20;
-    else if (hunt.rewardType === "NFT") score += 10;
-    // Hunts ending soon get a boost (urgency)
+    if (hunt.rewardType === 'Both') score += 20;
+    else if (hunt.rewardType === 'NFT') score += 10;
     if (hunt.endTime) {
       const hoursLeft = (hunt.endTime - now) / 3600;
       if (hoursLeft > 0 && hoursLeft < 48) score += 15;
     }
-    // Recently started hunts get a freshness boost
     if (hunt.startTime) {
       const daysSinceStart = (now - hunt.startTime) / 86400;
       if (daysSinceStart < 3) score += 10;
