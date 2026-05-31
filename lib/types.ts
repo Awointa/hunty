@@ -42,6 +42,8 @@ export type HuntInfo = {
   description: string
   totalClues: number
   status: string
+  startTime?: number
+  endTime?: number
   creatorEmail?: string
   emailNotifications?: boolean
 }

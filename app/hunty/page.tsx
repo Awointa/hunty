@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { Suspense, useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -40,7 +40,7 @@ const EMPTY_HUNT_DRAFT: HuntDraft = {
   code: "",
 }
 
-export default function CreateGame() {  
+function CreateGameContent() {  
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<"create" | "rewards" | "publish" | "leaderboard">("create")
   const [hunts, setHunts] = useLocalStorage<HuntDraft[]>("draft-hunts", [EMPTY_HUNT_DRAFT])
@@ -751,4 +751,12 @@ export default function CreateGame() {
       <QrCodeModal open={qrOpen} onClose={() => setQrOpen(false)} url={typeof window !== "undefined" ? window.location.href : ""} />
     </TooltipProvider>
   );
+}
+
+export default function CreateGame() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-tr from-blue-100 bg-purple-100 to-[#f9f9ff]" />}>
+      <CreateGameContent />
+    </Suspense>
+  )
 }

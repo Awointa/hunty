@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import Link from "next/link"
+import { useState, type MouseEvent as ReactMouseEvent } from "react"
 import { Plus, Trash2, Trophy, Copy, X } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardDescription, CardTitle } from "@/components/ui/card"
@@ -150,7 +152,7 @@ export function HuntDashboard({
     toast.success("Hunts archived successfully")
   }
 
-  const handleCopyId = (event: MouseEvent, id: number) => {
+  const handleCopyId = (event: ReactMouseEvent<HTMLElement>, id: number) => {
     event.preventDefault()
     event.stopPropagation()
     navigator.clipboard.writeText(id.toString())
@@ -360,7 +362,7 @@ export function HuntDashboard({
                   <Checkbox
                     checked={selectedIds.has(hunt.id)}
                     onCheckedChange={() => toggleSelect(hunt.id)}
-                    onClick={(event: MouseEvent) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
                     className="h-5 w-5 rounded-md border-slate-300 dark:border-white/20"
                     aria-label={`Select hunt ${hunt.title}`}
                   />
