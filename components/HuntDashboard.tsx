@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Plus, Trash2, Trophy, Copy, X } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardDescription, CardTitle } from "@/components/ui/card"
@@ -35,7 +36,10 @@ function StatusBadge({ status }: { status: StoredHunt["status"] }) {
         : "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800/50"
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles}`}
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        styles
+      )}
     >
       {status}
     </span>
@@ -209,11 +213,12 @@ export function HuntDashboard({ hunts, onActivate, onRefresh, onSaveClues }: Hun
           return (
             <Card
               key={hunt.id}
-              className={`group relative overflow-hidden rounded-2xl border transition-all ${
+              className={cn(
+                "group relative overflow-hidden rounded-2xl border transition-all",
                 selectedIds.has(hunt.id)
                   ? "border-blue-400 dark:border-blue-500 bg-blue-50/30 dark:bg-blue-900/10 ring-1 ring-blue-400 dark:ring-blue-500"
                   : "border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-white/20 shadow-sm"
-              }`}
+              )}
             >
               <div className="absolute right-3 top-3 z-10">
                 <Checkbox
