@@ -197,7 +197,7 @@ export function getHuntClues(huntId: number): Clue[] {
 }
 
 /** Persist a new clue locally and increment the hunt's cluesCount. */
-export function saveClueLocally(clue: Omit<Clue, "id">): void {
+export function saveClueLocally(clue: Omit<Clue, "id">): number {
   const all = readClues()
   const newId = all.length > 0 ? Math.max(...all.map((c) => c.id)) + 1 : 1
   writeClues([...all, { ...clue, id: newId }])
@@ -205,6 +205,18 @@ export function saveClueLocally(clue: Omit<Clue, "id">): void {
     h.id === clue.huntId ? { ...h, cluesCount: h.cluesCount + 1 } : h
   )
   writeHunts(hunts)
+  return newId
+}
+
+/** Update an existing clue's answer or other fields. Returns true if updated. */
+export function updateClueAnswer(huntId: number, clueId: number, answer: string): boolean {
+  const all = readClues()
+  const idx = all.findIndex((c) => c.huntId === huntId && c.id === clueId)
+  if (idx === -1) return false
+  const updated = [...all]
+  updated[idx] = { ...updated[idx], answer }
+  writeClues(updated)
+  return true
 }
 
 /** Snapshot current hunts/clues for optimistic UI rollback. */
