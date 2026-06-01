@@ -4,6 +4,7 @@ import { withSorobanRpcRetry } from "@/lib/soroban/rpcRetry"
 import { normalizeNetworkError, AnswerIncorrectError } from "./errors"
 import { SOROBAN_RPC_URL, NETWORK_PASSPHRASE } from "./config"
 import { getActiveWalletAdapter } from "@/lib/walletAdapter"
+import { sha256Hex } from "@/lib/crypto"
 
 import type { ClueInfo, HuntInfo, CreateHuntResult, SubmitAnswerResult, ActivateHuntResult, AddClueResult, ExtendHuntResult, LeaderboardEntry, FastestPlayerEntry } from "@/lib/types"
 
@@ -133,7 +134,11 @@ export async function addClue(
   const wallet = getActiveWalletAdapter()
   const publicKey = await wallet.getPublicKey()
 
-  const normalizedAnswer = answer.trim().toLowerCase()
+  // Expect `answer` to be the pre-hashed value (SHA-256 hex) computed
+  // client-side using the scheme: sha256(lowercase(answer) + `${huntId}_${clueId}`)
+  // For backwards compatibility, if a plain-text answer is provided it will be
+  // stored as-is (legacy behaviour).
+  const normalizedAnswer = answer
 
   const account = (await withSorobanRpcRetry(() => server.getAccount(publicKey))) as Account
   const payload = JSON.stringify({
@@ -429,10 +434,18 @@ export async function submitAnswer(
   if (!clue) throw new Error(`Clue ${clueId} not found for hunt ${huntId}`)
 
   const userAnswer = answer.trim().toLowerCase()
-  const possibleAnswers = clue.answer.toLowerCase().split("|").map((a) => a.trim())
 
-  if (!possibleAnswers.includes(userAnswer)) {
-    throw new AnswerIncorrectError()
+  // Detect stored hashed answer (hex SHA-256) vs legacy plain answers.
+  const stored = clue.answer || ""
+  const isHexSha256 = /^[a-f0-9]{64}$/i.test(stored)
+
+  if (isHexSha256) {
+    const salt = `${huntId}_${clue.id}`
+    const hashed = await sha256Hex(userAnswer + salt)
+    if (hashed !== stored) throw new AnswerIncorrectError()
+  } else {
+    const possibleAnswers = stored.toLowerCase().split("|").map((a) => a.trim())
+    if (!possibleAnswers.includes(userAnswer)) throw new AnswerIncorrectError()
   }
 
   // Calculate speed bonus

@@ -9,7 +9,8 @@ import { Controller, useFieldArray, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { addClue } from "@/lib/contracts/hunt"
-import { saveClueLocally } from "@/lib/huntStore"
+import { saveClueLocally, updateClueAnswer } from "@/lib/huntStore"
+import { sha256Hex } from "@/lib/crypto"
 import { withTransactionToast } from "@/lib/txToast"
 import { uploadToIPFS } from "@/lib/ipfs"
 import { toast } from "sonner"
@@ -102,18 +103,8 @@ export function HuntForm({ hunt, onUpdate, onRemove, huntId, onCluesSaved }: Hun
     try {
       for (const row of valid) {
         const normalizedAnswer = row.answer.trim().toLowerCase()
-        await withTransactionToast(
-          async (setStage) => {
-            setStage("approving")
-            return addClue(huntId, row.question.trim(), normalizedAnswer, row.points, row.hint?.trim() || undefined, row.hintCost)
-          },
-          {
-            pending:   "Pending — preparing clue…",
-            approving: "Approving — sign in your wallet…",
-            confirmed: "Clue confirmed!",
-          }
-        )
-        saveClueLocally({
+        // Persist locally first to obtain a stable clue id for salting
+        const newId = saveClueLocally({
           huntId,
           question: row.question.trim(),
           answer: normalizedAnswer,
@@ -121,6 +112,30 @@ export function HuntForm({ hunt, onUpdate, onRemove, huntId, onCluesSaved }: Hun
           hint: row.hint?.trim() || undefined,
           hintCost: row.hintCost,
         })
+
+        const salt = `${huntId}_${newId}`
+        const hashed = await sha256Hex(normalizedAnswer + salt)
+
+        await withTransactionToast(
+          async (setStage) => {
+            setStage("approving")
+            // Submit the hashed answer to the contract (expected scheme: sha256(answer + salt))
+            return addClue(huntId, row.question.trim(), hashed, row.points, row.hint?.trim() || undefined, row.hintCost)
+          },
+          {
+            pending:   "Pending — preparing clue…",
+            approving: "Approving — sign in your wallet…",
+            confirmed: "Clue confirmed!",
+          }
+        )
+
+        // Update the locally stored clue to contain the hashed answer
+        try {
+          updateClueAnswer(huntId, newId, hashed)
+        } catch (e) {
+          // non-fatal
+          console.warn("Failed to update local clue answer with hash", e)
+        }
       }
       onCluesSaved?.(valid.length)
       reset({ clues: [{ question: "", answer: "", points: 10, hint: "", hintCost: 0 }] })
