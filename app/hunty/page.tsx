@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { logger } from "@/lib/logger"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -310,7 +311,7 @@ export default function CreateGame() {
       setShowPublishModal(false);
       router.push("/hunts");
     } catch (error) {
-       console.error("Publish failed:", error);
+       logger.error("Publish failed:", error);
     } finally {
       setIsPublishing(false);
     }
@@ -335,7 +336,7 @@ export default function CreateGame() {
       })
       toast.success("Preview downloaded.")
     } catch (error) {
-      console.error("Failed to download image:", error)
+      logger.error("Failed to download image:", error)
       toast.error("Could not download image.")
     }
   }

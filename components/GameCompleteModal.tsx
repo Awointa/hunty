@@ -95,7 +95,7 @@ export function GameCompleteModal({
             })
           }
         } catch (error) {
-          console.error("Failed to check achievements:", error)
+          logger.error("Failed to check achievements:", error)
         }
       }
     }
@@ -121,7 +121,7 @@ export function GameCompleteModal({
         toast.success("Achievement image downloaded! You can now share it manually.")
       }
     } catch (error) {
-      console.error("Failed to share achievement:", error)
+      logger.error("Failed to share achievement:", error)
       toast.error("Failed to generate achievement image.")
     } finally {
       setIsGenerating(false)
