@@ -539,4 +539,199 @@ mod nft_reward_tests {
         assert_nft_present(&client, &player, id1);
         assert_nft_present(&client, &player, id2);
     }
+
+    // ── issue #850: NftLocked guard ───────────────────────────────────────────
+
+    /// `update_nft_metadata` must return `NftLocked` when the token is locked.
+    ///
+    /// This is one of the two acceptance criteria from issue #850: metadata
+    /// updates on a locked token must be rejected.
+    #[test]
+    #[should_panic]
+    fn test_update_nft_metadata_locked_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (minter, client) = setup(&env);
+        let player = Address::generate(&env);
+
+        let id = client.mint_reward_nft_from_map(
+            &minter,
+            &player,
+            &String::from_str(&env, "ipfs://QmOriginal"),
+        );
+
+        // Lock the token.
+        client.lock_nft(&player, &id);
+        assert!(client.is_locked(&id), "token should be locked after lock_nft");
+
+        // Attempt to update metadata on a locked token — must panic (NftLocked).
+        client.update_nft_metadata(
+            &player,
+            &id,
+            &String::from_str(&env, "ipfs://QmNewHash"),
+        );
+    }
+
+    /// `update_nft_metadata` succeeds after the token is unlocked.
+    ///
+    /// Locking is reversible: `unlock_nft` should restore normal metadata
+    /// update behaviour.
+    #[test]
+    fn test_update_nft_metadata_after_unlock_succeeds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (minter, client) = setup(&env);
+        let player = Address::generate(&env);
+
+        let id = client.mint_reward_nft_from_map(
+            &minter,
+            &player,
+            &String::from_str(&env, "ipfs://QmOriginal"),
+        );
+
+        client.lock_nft(&player, &id);
+        client.unlock_nft(&player, &id);
+        assert!(!client.is_locked(&id), "token should be unlocked after unlock_nft");
+
+        let new_uri = String::from_str(&env, "ipfs://QmAfterUnlock");
+        client.update_nft_metadata(&player, &id, &new_uri);
+
+        assert_eq!(client.get_uri(&id), Some(new_uri));
+    }
+
+    /// `admin_update_image_uri` must also respect the locked state.
+    #[test]
+    #[should_panic]
+    fn test_admin_update_image_uri_locked_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (minter, client) = setup(&env);
+        let player = Address::generate(&env);
+        let admin = Address::generate(&env);
+
+        let id = client.mint_reward_nft_from_map(
+            &minter,
+            &player,
+            &String::from_str(&env, "ipfs://QmOriginal"),
+        );
+
+        client.lock_nft(&player, &id);
+
+        // Even admin cannot override a locked token — must panic (NftLocked).
+        client.admin_update_image_uri(
+            &admin,
+            &id,
+            &String::from_str(&env, "ipfs://QmAdminHash"),
+        );
+    }
+
+    // ── issue #850: MetadataFrozen guard ──────────────────────────────────────
+
+    /// `update_nft_metadata` must return `MetadataFrozen` after `freeze_metadata`.
+    ///
+    /// This is the second acceptance criterion from issue #850: MetadataFrozen
+    /// must be wired to a real code path, not just a dead enum variant.
+    #[test]
+    #[should_panic]
+    fn test_update_nft_metadata_frozen_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (minter, client) = setup(&env);
+        let player = Address::generate(&env);
+
+        let id = client.mint_reward_nft_from_map(
+            &minter,
+            &player,
+            &String::from_str(&env, "ipfs://QmOriginal"),
+        );
+
+        // Permanently freeze the metadata.
+        client.freeze_metadata(&player, &id);
+        assert!(
+            client.is_metadata_frozen(&id),
+            "token should be frozen after freeze_metadata"
+        );
+
+        // Attempt to update metadata on a frozen token — must panic (MetadataFrozen).
+        client.update_nft_metadata(
+            &player,
+            &id,
+            &String::from_str(&env, "ipfs://QmShouldFail"),
+        );
+    }
+
+    /// Freezing is permanent: the URI is unchanged and the token stays frozen
+    /// even if the owner tries to update it repeatedly.
+    #[test]
+    #[should_panic]
+    fn test_update_nft_metadata_frozen_is_permanent() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (minter, client) = setup(&env);
+        let player = Address::generate(&env);
+
+        let original_uri = String::from_str(&env, "ipfs://QmFrozenForever");
+        let id = client.mint_reward_nft_from_map(&minter, &player, &original_uri);
+
+        client.freeze_metadata(&player, &id);
+
+        // URI must not have changed.
+        assert_eq!(client.get_uri(&id), Some(original_uri));
+
+        // Any update must still fail.
+        client.update_nft_metadata(
+            &player,
+            &id,
+            &String::from_str(&env, "ipfs://QmAttemptedChange"),
+        );
+    }
+
+    /// `admin_update_image_uri` must also respect the frozen state.  The
+    /// immutability guarantee offered by `freeze_metadata` must hold even
+    /// against the admin entry-point.
+    #[test]
+    #[should_panic]
+    fn test_admin_update_image_uri_frozen_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (minter, client) = setup(&env);
+        let player = Address::generate(&env);
+        let admin = Address::generate(&env);
+
+        let id = client.mint_reward_nft_from_map(
+            &minter,
+            &player,
+            &String::from_str(&env, "ipfs://QmOriginal"),
+        );
+
+        client.freeze_metadata(&player, &id);
+
+        // Admin must be blocked by the frozen flag — must panic (MetadataFrozen).
+        client.admin_update_image_uri(
+            &admin,
+            &id,
+            &String::from_str(&env, "ipfs://QmAdminAttempt"),
+        );
+    }
+
+    /// `admin_update_image_uri` succeeds on an unfrozen, unlocked token.
+    #[test]
+    fn test_admin_update_image_uri_succeeds_when_unlocked_and_unfrozen() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (minter, client) = setup(&env);
+        let player = Address::generate(&env);
+        let admin = Address::generate(&env);
+
+        let id = client.mint_reward_nft_from_map(
+            &minter,
+            &player,
+            &String::from_str(&env, "ipfs://QmOriginal"),
+        );
+
+        let new_uri = String::from_str(&env, "https://cdn.example.com/migrated.json");
+        client.admin_update_image_uri(&admin, &id, &new_uri);
+
+        assert_eq!(client.get_uri(&id), Some(new_uri));
+    }
 }
